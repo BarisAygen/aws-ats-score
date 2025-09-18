@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATS Score Calculator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Find how accuracte your cv is according to the job requirements</h1>
+
+  <div class="job-desc">
+    <label for="job">Job description: </label><br>
+    <textarea id="job" placeholder="Write the job description here..."></textarea>
+  </div>
+
+  <div class="upload">
+    <label for="cv">Upload your CV:</label><br>
+    <input type="file" id="cv" accept=".pdf,.doc,.docx">
+    <button onclick="uploadCV()">Upload</button>
+  </div>
+
+  <div id="result">
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

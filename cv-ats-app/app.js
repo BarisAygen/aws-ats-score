@@ -64,15 +64,27 @@ function handleFileSelection(file) {
     return;
   }
 
-  // Update UI to show selected file
-  uploadArea.innerHTML = `
-    <div class="upload-content">
-      <i class="fas fa-file-check upload-icon" style="color: var(--accent-yellow);"></i>
-      <p class="upload-text">File Selected</p>
-      <p class="upload-subtext">${file.name}</p>
-      <p class="upload-subtext">${(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-    </div>
-  `;
+  // Update UI to show selected file without removing elements
+  const uploadIcon = uploadArea.querySelector('.upload-icon');
+  const uploadText = uploadArea.querySelector('.upload-text');
+  const uploadSubtext = uploadArea.querySelector('.upload-subtext');
+  
+  if (uploadIcon) {
+    uploadIcon.className = 'fas fa-file-check upload-icon';
+    uploadIcon.style.color = 'var(--accent-yellow)';
+  }
+  
+  if (uploadText) {
+    uploadText.textContent = 'File Selected';
+  }
+  
+  if (uploadSubtext) {
+    uploadSubtext.innerHTML = `${file.name}<br>${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  
+  // Change upload area style to show success
+  uploadArea.style.borderColor = 'var(--accent-yellow)';
+  uploadArea.style.backgroundColor = 'var(--light-yellow)';
 
   uploadBtn.disabled = false;
   uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Analyze CV';
@@ -91,9 +103,27 @@ function initializeFormValidation() {
 }
 
 async function uploadCV() {
+  console.log("uploadCV called, DOM ready state:", document.readyState);
+  
   const fileInput = document.getElementById("cv");
-  const jobDescription = document.getElementById("job").value.trim();
-  const file = fileInput.files[0];
+  const jobTextarea = document.getElementById("job");
+  
+  console.log("Elements found - fileInput:", !!fileInput, "jobTextarea:", !!jobTextarea);
+  
+  if (!fileInput) {
+    console.error("File input element not found!");
+    showNotification("Error: File input not found. Please refresh the page.", "error");
+    return;
+  }
+  
+  if (!jobTextarea) {
+    console.error("Job textarea element not found!");
+    showNotification("Error: Job description field not found. Please refresh the page.", "error");
+    return;
+  }
+
+  const jobDescription = jobTextarea.value.trim();
+  const file = fileInput.files && fileInput.files[0];
 
   if (!file) { 
     showNotification("Please upload your CV first.", "error");
@@ -147,11 +177,115 @@ async function uploadCV() {
       throw new Error("Upload failed.");
     }
 
-    // Step 3: Process CV and calculate ATS score
-    // Simulate AI processing with mock data for now
+    // Step 3: Show success message and real upload results
+    hideLoadingState();
+    
+    // Display upload success with actual file info
+    const cvInfoSection = document.getElementById('cvInfoSection');
+    const atsScoreSection = document.getElementById('atsScoreSection');
+    
+    // Show basic upload info
+    cvInfoSection.innerHTML = `
+      <h2 class="section-title">
+        <i class="fas fa-check-circle" style="color: var(--accent-yellow);"></i>
+        Upload Successful
+      </h2>
+      <div class="cv-info-grid">
+        <div class="info-card">
+          <h3><i class="fas fa-file-upload"></i> File Information</h3>
+          <div class="info-content">
+            <div class="info-item">
+              <label>File Name:</label>
+              <span>${file.name}</span>
+            </div>
+            <div class="info-item">
+              <label>File Size:</label>
+              <span>${(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+            </div>
+            <div class="info-item">
+              <label>S3 Key:</label>
+              <span>${presign.key}</span>
+            </div>
+            <div class="info-item">
+              <label>Status:</label>
+              <span style="color: var(--accent-yellow); font-weight: 600;">Successfully Uploaded</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="info-card">
+          <h3><i class="fas fa-briefcase"></i> Job Description</h3>
+          <div class="info-content">
+            <div style="max-height: 200px; overflow-y: auto; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); font-size: 0.875rem; line-height: 1.6;">
+              ${jobDescription}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Show next steps with beautiful design
+    atsScoreSection.innerHTML = `
+      <h2 class="section-title">
+        <i class="fas fa-cog fa-spin"></i>
+        Processing Status
+      </h2>
+      <div class="score-container" style="text-align: center;">
+        <div style="padding: 2rem;">
+          <div style="background: var(--light-blue); padding: 2rem; border-radius: var(--radius-xl); border: 2px solid var(--primary-blue);">
+            <i class="fas fa-check-circle" style="font-size: 3rem; color: var(--accent-yellow); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--primary-blue); margin-bottom: 1rem;">Upload Complete!</h3>
+            <p style="color: var(--gray-700); margin-bottom: 1.5rem;">Your CV has been successfully uploaded to AWS S3.</p>
+            
+            <div style="background: var(--white); padding: 1.5rem; border-radius: var(--radius-lg); margin: 1rem 0;">
+              <h4 style="color: var(--gray-800); margin-bottom: 1rem;">Next Steps:</h4>
+              <ul style="text-align: left; color: var(--gray-700); list-style: none;">
+                <li style="margin-bottom: 0.5rem; padding-left: 1.5rem; position: relative;">
+                  <i class="fas fa-check-circle" style="position: absolute; left: 0; color: var(--accent-yellow);"></i>
+                  File uploaded to S3 storage
+                </li>
+                <li style="margin-bottom: 0.5rem; padding-left: 1.5rem; position: relative;">
+                  <i class="fas fa-clock" style="position: absolute; left: 0; color: var(--gray-400);"></i>
+                  Text extraction with AWS Textract (Coming soon)
+                </li>
+                <li style="margin-bottom: 0.5rem; padding-left: 1.5rem; position: relative;">
+                  <i class="fas fa-clock" style="position: absolute; left: 0; color: var(--gray-400);"></i>
+                  AI parsing with AWS Bedrock Claude (Coming soon)
+                </li>
+                <li style="margin-bottom: 0.5rem; padding-left: 1.5rem; position: relative;">
+                  <i class="fas fa-clock" style="position: absolute; left: 0; color: var(--gray-400);"></i>
+                  ATS score calculation (Coming soon)
+                </li>
+              </ul>
+            </div>
+            
+            <div style="background: var(--light-yellow); padding: 1rem; border-radius: var(--radius-md); border-left: 4px solid var(--accent-yellow); margin-top: 1rem;">
+              <p style="font-size: 0.875rem; color: var(--gray-700); margin: 0;">
+                <i class="fas fa-info-circle" style="color: var(--dark-yellow);"></i>
+                Your file is now stored securely in AWS S3. The backend processing pipeline (Textract → Bedrock → ATS scoring) will be implemented in the next development phase.
+              </p>
+            </div>
+            
+            <button onclick="location.reload()" style="margin-top: 1.5rem; background: var(--gradient-primary); color: white; border: none; padding: 0.75rem 2rem; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600;">
+              <i class="fas fa-plus"></i> Upload Another CV
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Show the sections with animation
+    cvInfoSection.style.display = 'block';
+    cvInfoSection.classList.add('fade-in');
+    atsScoreSection.style.display = 'block';
+    atsScoreSection.classList.add('fade-in');
+    
+    // Scroll to results
     setTimeout(() => {
-      displayMockResults(file.name, jobDescription);
-    }, 3000);
+      cvInfoSection.scrollIntoView({ behavior: 'smooth' });
+    }, 300);
+    
+    showNotification("CV uploaded successfully to AWS S3!", "success");
 
   } catch (error) {
     hideLoadingState();
@@ -179,154 +313,24 @@ function hideLoadingState() {
   uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Analyze CV';
 }
 
-function displayMockResults(filename, jobDescription) {
-  hideLoadingState();
-  
-  // Mock CV data - in real implementation, this would come from your AI processing
-  const mockCVData = {
-    name: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+1 (555) 123-4567",
-    location: "New York, NY",
-    education: [
-      {
-        degree: "Bachelor of Science in Computer Science",
-        school: "University of Technology",
-        year: "2018-2022"
-      },
-      {
-        degree: "Master of Science in Software Engineering",
-        school: "Tech Institute",
-        year: "2022-2024"
-      }
-    ],
-    experience: [
-      {
-        position: "Software Developer",
-        company: "Tech Corp",
-        duration: "2022-2024",
-        description: "Developed web applications using React and Node.js"
-      },
-      {
-        position: "Frontend Intern",
-        company: "StartupXYZ",
-        duration: "2021-2022",
-        description: "Built responsive user interfaces"
-      }
-    ],
-    skills: ["JavaScript", "React", "Node.js", "Python", "SQL", "Git", "AWS", "Docker"]
-  };
+// These functions will be used when backend processing is implemented
+// For now, they are commented out as we show real upload results
 
-  // Mock ATS scores
-  const mockATSScore = {
-    overall: 78,
-    keyword: 72,
-    skills: 85,
-    experience: 77
-  };
-
-  const mockRecommendations = [
-    "Add more specific technical skills mentioned in the job description",
-    "Include quantifiable achievements in your experience section",
-    "Consider adding relevant certifications",
-    "Optimize keywords for better ATS compatibility"
-  ];
-
-  // Display CV information
-  displayCVInformation(mockCVData);
-  
-  // Display ATS score with animation
-  setTimeout(() => {
-    displayATSScore(mockATSScore, mockRecommendations);
-  }, 500);
-
-  showNotification("CV analysis completed successfully!", "success");
-}
-
+/*
 function displayCVInformation(cvData) {
-  const cvInfoSection = document.getElementById('cvInfoSection');
-  
-  // Populate personal information
-  document.getElementById('cvName').textContent = cvData.name;
-  document.getElementById('cvEmail').textContent = cvData.email;
-  document.getElementById('cvPhone').textContent = cvData.phone;
-  document.getElementById('cvLocation').textContent = cvData.location;
-
-  // Populate education
-  const educationDiv = document.getElementById('cvEducation');
-  educationDiv.innerHTML = cvData.education.map(edu => `
-    <div style="margin-bottom: 1rem; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-      <strong>${edu.degree}</strong><br>
-      <span style="color: var(--gray-600);">${edu.school}</span><br>
-      <small style="color: var(--gray-500);">${edu.year}</small>
-    </div>
-  `).join('');
-
-  // Populate experience
-  const experienceDiv = document.getElementById('cvExperience');
-  experienceDiv.innerHTML = cvData.experience.map(exp => `
-    <div style="margin-bottom: 1rem; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-      <strong>${exp.position}</strong><br>
-      <span style="color: var(--gray-600);">${exp.company}</span><br>
-      <small style="color: var(--gray-500);">${exp.duration}</small><br>
-      <p style="margin-top: 0.5rem; font-size: 0.875rem;">${exp.description}</p>
-    </div>
-  `).join('');
-
-  // Populate skills
-  const skillsDiv = document.getElementById('cvSkills');
-  skillsDiv.innerHTML = `
-    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-      ${cvData.skills.map(skill => `
-        <span style="background: var(--light-blue); color: var(--primary-blue); padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 500;">
-          ${skill}
-        </span>
-      `).join('')}
-    </div>
-  `;
-
-  // Show the section with animation
-  cvInfoSection.style.display = 'block';
-  cvInfoSection.classList.add('fade-in');
-  cvInfoSection.scrollIntoView({ behavior: 'smooth' });
+  // This will be used when Textract + Bedrock processing is implemented
+  // For now, we show upload success instead
 }
 
 function displayATSScore(scores, recommendations) {
-  const atsScoreSection = document.getElementById('atsScoreSection');
-  
-  // Update main score with animation
-  const scoreElement = document.getElementById('atsScore');
-  animateScore(scoreElement, scores.overall);
-
-  // Update progress bars with animation
-  setTimeout(() => {
-    animateProgressBar('keywordProgress', 'keywordScore', scores.keyword);
-  }, 500);
-  
-  setTimeout(() => {
-    animateProgressBar('skillsProgress', 'skillsScore', scores.skills);
-  }, 1000);
-  
-  setTimeout(() => {
-    animateProgressBar('experienceProgress', 'experienceScore', scores.experience);
-  }, 1500);
-
-  // Update recommendations
-  const recommendationsList = document.getElementById('recommendationsList');
-  recommendationsList.innerHTML = recommendations.map(rec => `<li>${rec}</li>`).join('');
-
-  // Show the section with animation
-  atsScoreSection.style.display = 'block';
-  atsScoreSection.classList.add('fade-in');
-  
-  setTimeout(() => {
-    atsScoreSection.scrollIntoView({ behavior: 'smooth' });
-  }, 2000);
+  // This will be used when ATS scoring is implemented
+  // For now, we show processing status instead
 }
 
 function animateScore(element, targetScore) {
+  // Animation for ATS score display
   let currentScore = 0;
-  const increment = targetScore / 50; // 50 steps for smooth animation
+  const increment = targetScore / 50;
   
   const timer = setInterval(() => {
     currentScore += increment;
@@ -339,12 +343,14 @@ function animateScore(element, targetScore) {
 }
 
 function animateProgressBar(progressId, scoreId, targetScore) {
+  // Animation for progress bars
   const progressBar = document.getElementById(progressId);
   const scoreElement = document.getElementById(scoreId);
   
   progressBar.style.width = `${targetScore}%`;
   scoreElement.textContent = `${targetScore}%`;
 }
+*/
 
 function showNotification(message, type = 'info') {
   // Create notification element

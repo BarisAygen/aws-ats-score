@@ -3,25 +3,174 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ATS Score Calculator</title>
+  <title>CV ATS Score Calculator</title>
   <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-  <h1>Find how accuracte your cv is according to the job requirements</h1>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="title">
+          <i class="fas fa-chart-line"></i>
+          CV ATS Score Calculator
+        </h1>
+        <p class="subtitle">Discover how well your CV matches job requirements with AI-powered analysis</p>
+      </div>
+    </header>
 
-  <div class="job-desc">
-    <label for="job">Job description: </label><br>
-    <textarea id="job" placeholder="Write the job description here..."></textarea>
-  </div>
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Section -->
+      <div class="top-section">
+        <!-- Upload Section -->
+        <div class="upload-section">
+          <div class="upload-card">
+            <div class="upload-header">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <h2>Upload Your CV</h2>
+            </div>
+            <div class="upload-area" id="uploadArea">
+              <div class="upload-content">
+                <i class="fas fa-file-upload upload-icon"></i>
+                <p class="upload-text">Drag & drop your CV here</p>
+                <p class="upload-subtext">or click to browse</p>
+                <input type="file" id="cv" accept=".pdf,.doc,.docx" class="file-input">
+              </div>
+            </div>
+            <div class="upload-info">
+              <p><i class="fas fa-info-circle"></i> Supported formats: PDF, DOC, DOCX (Max 10MB)</p>
+            </div>
+            <button class="upload-btn" onclick="uploadCV()" disabled>
+              <i class="fas fa-upload"></i>
+              Analyze CV
+            </button>
+          </div>
+        </div>
 
-  <div class="upload">
-    <label for="cv">Upload your CV:</label><br>
-    <input type="file" id="cv" accept=".pdf,.doc,.docx">
-    <button onclick="uploadCV()">Upload</button>
-  </div>
+        <!-- Job Description Section -->
+        <div class="job-desc-section">
+          <div class="job-desc-card">
+            <div class="job-desc-header">
+              <i class="fas fa-briefcase"></i>
+              <h2>Job Description</h2>
+            </div>
+            <div class="textarea-container">
+              <textarea id="job" placeholder="Paste the complete job description here including requirements, responsibilities, and qualifications..."></textarea>
+            </div>
+            <div class="job-desc-info">
+              <p><i class="fas fa-lightbulb"></i> Include all requirements for better matching accuracy</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div id="result">
+      <!-- CV Information Section -->
+      <div class="cv-info-section" id="cvInfoSection" style="display: none;">
+        <h2 class="section-title">
+          <i class="fas fa-user-circle"></i>
+          Extracted CV Information
+        </h2>
+        <div class="cv-info-grid">
+          <div class="info-card">
+            <h3><i class="fas fa-user"></i> Personal Information</h3>
+            <div class="info-content">
+              <div class="info-item">
+                <label>Full Name:</label>
+                <span id="cvName">-</span>
+              </div>
+              <div class="info-item">
+                <label>Email:</label>
+                <span id="cvEmail">-</span>
+              </div>
+              <div class="info-item">
+                <label>Phone:</label>
+                <span id="cvPhone">-</span>
+              </div>
+              <div class="info-item">
+                <label>Location:</label>
+                <span id="cvLocation">-</span>
+              </div>
+            </div>
+          </div>
 
+          <div class="info-card">
+            <h3><i class="fas fa-graduation-cap"></i> Education</h3>
+            <div class="info-content">
+              <div id="cvEducation">-</div>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <h3><i class="fas fa-briefcase"></i> Experience</h3>
+            <div class="info-content">
+              <div id="cvExperience">-</div>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <h3><i class="fas fa-tools"></i> Skills</h3>
+            <div class="info-content">
+              <div id="cvSkills">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ATS Score Section -->
+      <div class="ats-score-section" id="atsScoreSection" style="display: none;">
+        <h2 class="section-title">
+          <i class="fas fa-chart-bar"></i>
+          ATS Score Analysis
+        </h2>
+        <div class="score-container">
+          <div class="score-circle">
+            <div class="score-value" id="atsScore">0</div>
+            <div class="score-label">ATS Score</div>
+          </div>
+          <div class="score-details">
+            <div class="score-breakdown">
+              <h3>Score Breakdown</h3>
+              <div class="breakdown-item">
+                <span class="breakdown-label">Keyword Match:</span>
+                <div class="progress-bar">
+                  <div class="progress" id="keywordProgress"></div>
+                </div>
+                <span class="breakdown-score" id="keywordScore">0%</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="breakdown-label">Skills Match:</span>
+                <div class="progress-bar">
+                  <div class="progress" id="skillsProgress"></div>
+                </div>
+                <span class="breakdown-score" id="skillsScore">0%</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="breakdown-label">Experience Match:</span>
+                <div class="progress-bar">
+                  <div class="progress" id="experienceProgress"></div>
+                </div>
+                <span class="breakdown-score" id="experienceScore">0%</span>
+              </div>
+            </div>
+            <div class="recommendations">
+              <h3>Recommendations</h3>
+              <ul id="recommendationsList">
+                <li>Upload your CV to get personalized recommendations</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading Section -->
+      <div class="loading-section" id="loadingSection" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Analyzing your CV with AI...</p>
+      </div>
+    </main>
   </div>
 
   <script src="app.js"></script>

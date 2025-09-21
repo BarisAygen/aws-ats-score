@@ -205,48 +205,183 @@ async function computeATS() {
   const jd = window.__jobDesc || "";
   if (!parsed || !jd) { showNotification("Missing parsed CV or job description.", "error"); return; }
 
-  const res = await fetch(`${API_BASE}/score`, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ parsedCv: parsed, jobDescription: jd })
-  });
-  const data = await res.json();
-  if (!data.ok) { showNotification(data.error || "Scoring failed", "error"); return; }
+  // Show loading animation
+  showATSLoading();
 
-  renderScore(data);
+  try {
+    const res = await fetch(`${API_BASE}/score`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ parsedCv: parsed, jobDescription: jd })
+    });
+    const data = await res.json();
+    if (!data.ok) { showNotification(data.error || "Scoring failed", "error"); return; }
+
+    renderScore(data);
+  } catch (error) {
+    showNotification("Failed to calculate ATS score", "error");
+  }
+}
+
+function showATSLoading() {
+  const el = document.getElementById('atsScoreSection');
+  el.innerHTML = `
+    <h2 class="section-title"><i class="fas fa-chart-line"></i> Calculating ATS Score</h2>
+    <div class="ats-loading-container">
+      <div class="ats-loading-circle">
+        <div class="ats-loading-score">
+          <div class="ats-loading-number" id="loadingNumber">0</div>
+          <div class="ats-loading-label">ATS Score</div>
+        </div>
+        <svg class="ats-progress-ring" width="200" height="200">
+          <circle class="ats-progress-ring-bg" cx="100" cy="100" r="85" />
+          <circle class="ats-progress-ring-progress" id="progressRing" cx="100" cy="100" r="85" />
+        </svg>
+      </div>
+      <div class="ats-loading-text">
+        <i class="fas fa-brain fa-pulse"></i>
+        <span id="loadingText">Analyzing CV with AI...</span>
+      </div>
+      <div class="ats-progress-bar">
+        <div class="ats-progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+  `;
+  
+  // Start the loading animation
+  animateLoading();
+}
+
+function animateLoading() {
+  const loadingNumber = document.getElementById('loadingNumber');
+  const loadingText = document.getElementById('loadingText');
+  const progressFill = document.getElementById('progressFill');
+  const progressRing = document.getElementById('progressRing');
+  
+  const messages = [
+    "Analyzing CV content...",
+    "Extracting keywords...",
+    "Matching job requirements...",
+    "Calculating compatibility...",
+    "Finalizing score..."
+  ];
+  
+  let progress = 0;
+  let messageIndex = 0;
+  
+  const interval = setInterval(() => {
+    progress += Math.random() * 15 + 5; // Random increment between 5-20
+    if (progress > 95) progress = 95; // Don't reach 100 until done
+    
+    // Update number
+    loadingNumber.textContent = Math.round(progress);
+    
+    // Update progress bar
+    progressFill.style.width = `${progress}%`;
+    
+    // Update progress ring
+    const circumference = 2 * Math.PI * 85;
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
+    progressRing.style.strokeDashoffset = strokeDashoffset;
+    
+    // Update message
+    if (Math.random() > 0.7 && messageIndex < messages.length - 1) {
+      messageIndex++;
+      loadingText.textContent = messages[messageIndex];
+    }
+    
+    if (progress >= 95) {
+      clearInterval(interval);
+    }
+  }, 300);
+  
+  // Store interval ID for cleanup
+  window.atsLoadingInterval = interval;
 }
 
 function renderScore(s) {
+  // Clear loading animation
+  if (window.atsLoadingInterval) {
+    clearInterval(window.atsLoadingInterval);
+  }
+  
   const el = document.getElementById('atsScoreSection');
   const missingHtml = s.missingKeywords.length
-    ? `<ul>${s.missingKeywords.slice(0,30).map(k=>`<li>${k}</li>`).join("")}</ul>`
-    : "<em>No missing keywords</em>";
+    ? s.missingKeywords.slice(0,15).map(k=>`<span class="keyword-tag missing">${k}</span>`).join("")
+    : "<em>No missing keywords found</em>";
   const matchedHtml = s.matchedKeywords.length
-    ? `<ul>${s.matchedKeywords.slice(0,50).map(k=>`<li>${k}</li>`).join("")}</ul>`
-    : "<em>No matches</em>";
+    ? s.matchedKeywords.slice(0,20).map(k=>`<span class="keyword-tag matched">${k}</span>`).join("")
+    : "<em>No keyword matches found</em>";
+
+  // Determine score color and status
+  const scoreColor = s.score >= 80 ? '#28a745' : s.score >= 60 ? '#ffc107' : '#dc3545';
+  const scoreStatus = s.score >= 80 ? 'Excellent' : s.score >= 60 ? 'Good' : 'Needs Improvement';
+  const scoreIcon = s.score >= 80 ? 'fa-check-circle' : s.score >= 60 ? 'fa-exclamation-circle' : 'fa-times-circle';
 
   el.innerHTML = `
-    <h2 class="section-title"><i class="fas fa-chart-line"></i> ATS Score</h2>
-    <div class="score-container" style="text-align:center;">
-      <div style="font-size:3rem;font-weight:800;color:var(--primary-blue);">${s.score}</div>
-      <div style="color:var(--gray-600);margin-bottom:1rem;">/100</div>
-      <div class="cv-info-grid">
-        <div class="info-card">
-          <h3><i class="fas fa-check"></i> Matched Keywords</h3>
-          <div class="info-content">${matchedHtml}</div>
+    <h2 class="section-title"><i class="fas fa-chart-line"></i> ATS Score Results</h2>
+    
+    <div class="ats-score-hero">
+      <div class="ats-score-circle">
+        <div class="ats-score-content">
+          <div class="ats-score-number" style="color: ${scoreColor};">${s.score}</div>
+          <div class="ats-score-total">/100</div>
         </div>
-        <div class="info-card">
-          <h3><i class="fas fa-magnifying-glass"></i> Missing Keywords</h3>
-          <div class="info-content">${missingHtml}</div>
+        <svg class="ats-score-ring" width="200" height="200">
+          <circle class="ats-score-ring-bg" cx="100" cy="100" r="85" />
+          <circle class="ats-score-ring-progress" cx="100" cy="100" r="85" 
+                  style="stroke: ${scoreColor}; stroke-dasharray: ${2 * Math.PI * 85}; 
+                         stroke-dashoffset: ${2 * Math.PI * 85 - (s.score / 100) * 2 * Math.PI * 85};" />
+        </svg>
+      </div>
+      <div class="ats-score-status">
+        <i class="fas ${scoreIcon}" style="color: ${scoreColor};"></i>
+        <span style="color: ${scoreColor};">${scoreStatus}</span>
+      </div>
+    </div>
+
+    <div class="ats-results-grid">
+      <div class="ats-result-card matched">
+        <div class="ats-result-header">
+          <i class="fas fa-check-circle"></i>
+          <h3>Matched Keywords</h3>
+          <span class="keyword-count">${s.matchedKeywords.length}</span>
+        </div>
+        <div class="keyword-container">
+          ${matchedHtml}
         </div>
       </div>
-      <div class="info-card" style="margin-top:1rem;">
-        <h3><i class="fas fa-info-circle"></i> Notes</h3>
-        <div class="info-content">
-          ${(s.notes||[]).length ? `<ul>${s.notes.map(n=>`<li>${n}</li>`).join("")}</ul>` : "<em>No notes</em>"}
+      
+      <div class="ats-result-card missing">
+        <div class="ats-result-header">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Missing Keywords</h3>
+          <span class="keyword-count">${s.missingKeywords.length}</span>
+        </div>
+        <div class="keyword-container">
+          ${missingHtml}
         </div>
       </div>
-    </div>`;
+    </div>
+
+    ${(s.notes && s.notes.length) ? `
+      <div class="ats-notes-card">
+        <div class="ats-notes-header">
+          <i class="fas fa-lightbulb"></i>
+          <h3>Recommendations</h3>
+        </div>
+        <ul class="ats-notes-list">
+          ${s.notes.map(n=>`<li><i class="fas fa-arrow-right"></i>${n}</li>`).join("")}
+        </ul>
+      </div>
+    ` : ''}
+  `;
+  
+  // Animate the score ring
+  setTimeout(() => {
+    const ring = el.querySelector('.ats-score-ring-progress');
+    ring.style.transition = 'stroke-dashoffset 2s ease-in-out';
+  }, 100);
 }
 
 function showParseResult(parsed, jobDescription) {
@@ -378,5 +513,289 @@ style.textContent = `
   .notification-error { background-color: #dc3545 !important; }
   .notification-success { background-color: #28a745 !important; }
   .notification-info { background-color: #17a2b8 !important; }
+  
+  /* ATS Loading Styles */
+  .ats-loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 1rem;
+    margin: 2rem 0;
+  }
+  
+  .ats-loading-circle {
+    position: relative;
+    margin-bottom: 2rem;
+  }
+  
+  .ats-loading-score {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  
+  .ats-loading-number {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #007bff;
+    line-height: 1;
+  }
+  
+  .ats-loading-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+  }
+  
+  .ats-progress-ring {
+    transform: rotate(-90deg);
+  }
+  
+  .ats-progress-ring-bg {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 8;
+  }
+  
+  .ats-progress-ring-progress {
+    fill: none;
+    stroke: #007bff;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: ${2 * Math.PI * 85};
+    stroke-dashoffset: ${2 * Math.PI * 85};
+    transition: stroke-dashoffset 0.3s ease;
+  }
+  
+  .ats-loading-text {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.125rem;
+    color: #495057;
+    margin-bottom: 1.5rem;
+  }
+  
+  .ats-progress-bar {
+    width: 100%;
+    max-width: 300px;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .ats-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #0056b3);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  
+  /* ATS Score Results Styles */
+  .ats-score-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 2rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    margin: 2rem 0;
+  }
+  
+  .ats-score-circle {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  
+  .ats-score-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  
+  .ats-score-number {
+    font-size: 4rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  
+  .ats-score-total {
+    font-size: 1.5rem;
+    color: #6c757d;
+    font-weight: 500;
+  }
+  
+  .ats-score-ring {
+    transform: rotate(-90deg);
+  }
+  
+  .ats-score-ring-bg {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 10;
+  }
+  
+  .ats-score-ring-progress {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 2s ease-in-out;
+  }
+  
+  .ats-score-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  
+  .ats-results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin: 2rem 0;
+  }
+  
+  @media (max-width: 768px) {
+    .ats-results-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .ats-result-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: 1px solid #e9ecef;
+  }
+  
+  .ats-result-card.matched {
+    border-left: 4px solid #28a745;
+  }
+  
+  .ats-result-card.missing {
+    border-left: 4px solid #dc3545;
+  }
+  
+  .ats-result-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .ats-result-header i {
+    font-size: 1.25rem;
+  }
+  
+  .ats-result-card.matched .ats-result-header i {
+    color: #28a745;
+  }
+  
+  .ats-result-card.missing .ats-result-header i {
+    color: #dc3545;
+  }
+  
+  .ats-result-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    flex: 1;
+  }
+  
+  .keyword-count {
+    background: #f8f9fa;
+    color: #495057;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  
+  .keyword-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .keyword-tag {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  .keyword-tag.matched {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .keyword-tag.missing {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .ats-notes-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #17a2b8;
+    margin-top: 2rem;
+  }
+  
+  .ats-notes-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .ats-notes-header i {
+    color: #17a2b8;
+    font-size: 1.25rem;
+  }
+  
+  .ats-notes-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+  }
+  
+  .ats-notes-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .ats-notes-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f8f9fa;
+  }
+  
+  .ats-notes-list li:last-child {
+    border-bottom: none;
+  }
+  
+  .ats-notes-list li i {
+    color: #17a2b8;
+    margin-top: 0.125rem;
+    font-size: 0.875rem;
+  }
 `;
 document.head.appendChild(style);

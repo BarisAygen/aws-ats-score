@@ -18,7 +18,11 @@ function initializeUploadArea() {
     const files = e.dataTransfer.files;
     if (files.length > 0) { fileInput.files = files; handleFileSelection(files[0]); }
   });
-  uploadArea.addEventListener('click', () => fileInput.click());
+  uploadArea.addEventListener('click', (e) => {
+    // Prevent double triggering if user clicks directly on file input
+    if (e.target === fileInput) return;
+    fileInput.click();
+  });
   fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFileSelection(e.target.files[0]); });
 }
 
@@ -92,6 +96,8 @@ async function uploadCV() {
       showProcessing("Extracting text with AWS Textract…");
       const text = await extractText(presign.key);
       showExtractResult(text);
+      const parsed = await parseWithBedrock(text);
+      showParseResult(parsed, jobDescription);
     } else {
       showProcessing("DOC/DOCX extraction coming soon. PDF works now.");
     }
@@ -140,6 +146,17 @@ async function extractText(key) {
   throw new Error("Textract is still running. Try again.");
 }
 
+async function parseWithBedrock(text) {
+  const res = await fetch(`${API_BASE}/parse`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ text })
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Parse failed");
+  return data.parsed; 
+}
+
 // UI helpers
 function showUploadSummary(s3Key, file, jobDescription) {
   const cvInfoSection = document.getElementById('cvInfoSection');
@@ -182,6 +199,76 @@ function showUploadSummary(s3Key, file, jobDescription) {
   atsScoreSection.style.display = 'block';
   cvInfoSection.classList.add('fade-in');
   atsScoreSection.classList.add('fade-in');
+}
+
+function showParseResult(parsed, jobDescription) {
+  const atsScoreSection = document.getElementById('atsScoreSection');
+
+  const esc = s => String(s ?? "").replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+
+  const contact = parsed?.contact || {};
+  const skills = Array.isArray(parsed?.skills) ? parsed.skills : [];
+  const exp = Array.isArray(parsed?.experience) ? parsed.experience : [];
+  const edu = Array.isArray(parsed?.education) ? parsed.education : [];
+
+  const skillsHtml = skills.length ? `<ul>${skills.slice(0,30).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>` : "<em>No skills parsed</em>";
+  const expHtml = exp.length ? exp.slice(0,5).map(e=>`
+    <div class="info-item" style="margin-bottom:.75rem;">
+      <strong>${esc(e.title||"")}</strong> @ ${esc(e.company||"")}
+      <div style="color:var(--gray-600);font-size:.85rem;">${esc(e.start||"")} – ${esc(e.end||"")} • ${esc(e.location||"")}</div>
+      ${Array.isArray(e.bullets)&&e.bullets.length?`<ul>${e.bullets.slice(0,6).map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`:""}
+    </div>`).join("") : "<em>No experience parsed</em>";
+  const eduHtml = edu.length ? edu.slice(0,5).map(d=>`
+    <div class="info-item" style="margin-bottom:.5rem;">
+      <strong>${esc(d.degree||"")}</strong> – ${esc(d.school||"")}
+      <div style="color:var(--gray-600);font-size:.85rem;">${esc(d.start||"")} – ${esc(d.end||"")}${d.gpa?` • GPA: ${esc(d.gpa)}`:""}</div>
+    </div>`).join("") : "<em>No education parsed</em>";
+
+  atsScoreSection.innerHTML = `
+    <h2 class="section-title"><i class="fas fa-user-check"></i> Parsed CV</h2>
+
+    <div class="cv-info-grid">
+      <div class="info-card">
+        <h3><i class="fas fa-id-card"></i> Profile</h3>
+        <div class="info-content">
+          <div class="info-item"><label>Name:</label><span>${esc(parsed?.name||"")}</span></div>
+          <div class="info-item"><label>Email:</label><span>${esc(contact.email||"")}</span></div>
+          <div class="info-item"><label>Phone:</label><span>${esc(contact.phone||"")}</span></div>
+          <div class="info-item"><label>Location:</label><span>${esc(contact.location||"")}</span></div>
+          <div class="info-item"><label>LinkedIn:</label><span>${esc(contact.linkedin||"")}</span></div>
+          <div class="info-item"><label>GitHub:</label><span>${esc(contact.github||"")}</span></div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3><i class="fas fa-tools"></i> Skills</h3>
+        <div class="info-content">${skillsHtml}</div>
+      </div>
+    </div>
+
+    <div class="info-card" style="margin-top:1rem;">
+      <h3><i class="fas fa-briefcase"></i> Experience</h3>
+      <div class="info-content">${expHtml}</div>
+    </div>
+
+    <div class="info-card" style="margin-top:1rem;">
+      <h3><i class="fas fa-graduation-cap"></i> Education</h3>
+      <div class="info-content">${eduHtml}</div>
+    </div>
+
+    <div style="text-align:right;margin-top:1rem;">
+      <button id="scoreBtn" style="background:var(--gradient-primary);color:white;border:none;padding:.7rem 1.2rem;border-radius:var(--radius-lg);font-weight:600;cursor:pointer;">
+        <i class="fas fa-chart-line"></i> Compute ATS Score
+      </button>
+    </div>
+  `;
+
+  // İleride /score entegrasyonu için parsed ve jobDescription’ı sakla
+  window.__parsedCv = parsed;
+  window.__jobDesc = jobDescription;
+
+  const btn = document.getElementById('scoreBtn');
+  if (btn) btn.onclick = () => showNotification("ATS scoring endpoint will be added next.", "info");
 }
 
 function showProcessing(msg) {
@@ -240,5 +327,8 @@ const style = document.createElement('style');
 style.textContent = `
   @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+  .notification-error { background-color: #dc3545 !important; }
+  .notification-success { background-color: #28a745 !important; }
+  .notification-info { background-color: #17a2b8 !important; }
 `;
 document.head.appendChild(style);

@@ -200,6 +200,54 @@ function showUploadSummary(s3Key, file, jobDescription) {
   cvInfoSection.classList.add('fade-in');
   atsScoreSection.classList.add('fade-in');
 }
+async function computeATS() {
+  const parsed = window.__parsedCv;
+  const jd = window.__jobDesc || "";
+  if (!parsed || !jd) { showNotification("Missing parsed CV or job description.", "error"); return; }
+
+  const res = await fetch(`${API_BASE}/score`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ parsedCv: parsed, jobDescription: jd })
+  });
+  const data = await res.json();
+  if (!data.ok) { showNotification(data.error || "Scoring failed", "error"); return; }
+
+  renderScore(data);
+}
+
+function renderScore(s) {
+  const el = document.getElementById('atsScoreSection');
+  const missingHtml = s.missingKeywords.length
+    ? `<ul>${s.missingKeywords.slice(0,30).map(k=>`<li>${k}</li>`).join("")}</ul>`
+    : "<em>No missing keywords</em>";
+  const matchedHtml = s.matchedKeywords.length
+    ? `<ul>${s.matchedKeywords.slice(0,50).map(k=>`<li>${k}</li>`).join("")}</ul>`
+    : "<em>No matches</em>";
+
+  el.innerHTML = `
+    <h2 class="section-title"><i class="fas fa-chart-line"></i> ATS Score</h2>
+    <div class="score-container" style="text-align:center;">
+      <div style="font-size:3rem;font-weight:800;color:var(--primary-blue);">${s.score}</div>
+      <div style="color:var(--gray-600);margin-bottom:1rem;">/100</div>
+      <div class="cv-info-grid">
+        <div class="info-card">
+          <h3><i class="fas fa-check"></i> Matched Keywords</h3>
+          <div class="info-content">${matchedHtml}</div>
+        </div>
+        <div class="info-card">
+          <h3><i class="fas fa-magnifying-glass"></i> Missing Keywords</h3>
+          <div class="info-content">${missingHtml}</div>
+        </div>
+      </div>
+      <div class="info-card" style="margin-top:1rem;">
+        <h3><i class="fas fa-info-circle"></i> Notes</h3>
+        <div class="info-content">
+          ${(s.notes||[]).length ? `<ul>${s.notes.map(n=>`<li>${n}</li>`).join("")}</ul>` : "<em>No notes</em>"}
+        </div>
+      </div>
+    </div>`;
+}
 
 function showParseResult(parsed, jobDescription) {
   const atsScoreSection = document.getElementById('atsScoreSection');
@@ -268,7 +316,7 @@ function showParseResult(parsed, jobDescription) {
   window.__jobDesc = jobDescription;
 
   const btn = document.getElementById('scoreBtn');
-  if (btn) btn.onclick = () => showNotification("ATS scoring endpoint will be added next.", "info");
+  if (btn) btn.onclick = computeATS;
 }
 
 function showProcessing(msg) {

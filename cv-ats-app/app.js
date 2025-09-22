@@ -72,12 +72,12 @@ async function uploadCV() {
 
   try {
     // 1) Presign
-    const presignRes = await fetch(`${API_BASE}/presign`, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream" })
-    });
-    const presign = await presignRes.json();
+  const presignRes = await fetch(`${API_BASE}/presign`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream" })
+  });
+  const presign = await presignRes.json();
     if (!presign.ok) throw new Error(presign.error || "Failed to get upload URL.");
 
     // 2) PUT to S3 (Content-Type eşleşiyor)
@@ -163,23 +163,27 @@ function showUploadSummary(s3Key, file, jobDescription) {
   const atsScoreSection = document.getElementById('atsScoreSection');
 
   cvInfoSection.innerHTML = `
-    <h2 class="section-title"><i class="fas fa-check-circle" style="color: var(--accent-yellow);"></i> Upload Successful</h2>
+    <h2 class="section-title"><i class="fas fa-check-circle" style="color: var(--accent-yellow);"></i> CV Successfully Uploaded</h2>
     <div class="cv-info-grid">
       <div class="info-card">
-        <h3><i class="fas fa-file-upload"></i> File Information</h3>
+        <h3><i class="fas fa-file-alt"></i> Your CV</h3>
         <div class="info-content">
           <div class="info-item"><label>File Name:</label><span>${file.name}</span></div>
           <div class="info-item"><label>File Size:</label><span>${(file.size / (1024 * 1024)).toFixed(2)} MB</span></div>
-          <div class="info-item"><label>S3 Key:</label><span>${s3Key}</span></div>
-          <div class="info-item"><label>Status:</label><span style="color: var(--accent-yellow); font-weight: 600;">Uploaded</span></div>
+          <div class="info-item"><label>Status:</label><span style="color: var(--accent-yellow); font-weight: 600;"><i class="fas fa-check-circle"></i> Ready for Analysis</span></div>
         </div>
       </div>
       <div class="info-card">
-        <h3><i class="fas fa-briefcase"></i> Job Description</h3>
+        <h3><i class="fas fa-briefcase"></i> Target Position</h3>
         <div class="info-content">
-          <div style="max-height: 200px; overflow-y: auto; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); font-size: 0.875rem; line-height: 1.6;">
-            ${jobDescription}
+          <div style="max-height: 200px; overflow-y: auto; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); font-size: 0.875rem; line-height: 1.6; color: var(--gray-700);">
+            ${jobDescription.length > 300 ? jobDescription.substring(0, 300) + '...' : jobDescription}
           </div>
+          ${jobDescription.length > 300 ? `
+            <div style="margin-top: 0.5rem;">
+              <small style="color: var(--gray-600);"><i class="fas fa-info-circle"></i> Showing first 300 characters</small>
+            </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -189,7 +193,6 @@ function showUploadSummary(s3Key, file, jobDescription) {
     <div class="score-container" style="text-align:center;">
       <div style="padding:2rem;">
         <div style="background: var(--light-blue); padding: 2rem; border-radius: var(--radius-xl); border: 2px solid var(--primary-blue);">
-          <h3 style="color: var(--primary-blue); margin-bottom: 1rem;">Working…</h3>
           <p id="processingMessage" style="color: var(--gray-700); margin: 0;">Starting…</p>
         </div>
       </div>
@@ -375,6 +378,23 @@ function renderScore(s) {
         </ul>
       </div>
     ` : ''}
+    
+    <div class="chat-launch-section">
+      <div class="chat-launch-card">
+        <div class="chat-launch-header">
+          <i class="fas fa-comments"></i>
+          <h3>Ready for Interview Practice?</h3>
+        </div>
+        <p class="chat-launch-description">
+          Get personalized interview questions based on your CV and the job requirements. 
+          Practice with our AI interviewer to improve your chances!
+        </p>
+        <button class="chat-launch-btn" onclick="startAIChat()">
+          <i class="fas fa-robot"></i>
+          Chat with AI Interviewer
+        </button>
+      </div>
+    </div>
   `;
   
   // Animate the score ring
@@ -461,13 +481,47 @@ function showProcessing(msg) {
 
 function showExtractResult(text) {
   const atsScoreSection = document.getElementById('atsScoreSection');
-  const preview = (text || "").slice(0, 2000).replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
+  // Don't show raw extracted text to user, just show processing status
   atsScoreSection.innerHTML = `
-    <h2 class="section-title"><i class="fas fa-file-alt"></i> Extracted Text (preview)</h2>
-    <div style="background: var(--white); padding: 1rem; border-radius: var(--radius-lg); border: 1px solid var(--gray-200); max-height: 360px; overflow: auto; white-space: pre-wrap; font-size: 0.9rem;">
-      ${preview || "<em>No text detected.</em>"}
+    <h2 class="section-title"><i class="fas fa-cog fa-spin"></i> Processing Your CV</h2>
+    <div class="score-container" style="text-align: center;">
+      <div style="padding: 2rem;">
+        <div style="background: var(--light-blue); padding: 2rem; border-radius: var(--radius-xl); border: 2px solid var(--primary-blue);">
+          <i class="fas fa-check-circle" style="font-size: 3rem; color: var(--accent-yellow); margin-bottom: 1rem;"></i>
+          <h3 style="color: var(--primary-blue); margin-bottom: 1rem;">Text Extraction Complete!</h3>
+          <p style="color: var(--gray-700); margin-bottom: 1.5rem;">Your CV content has been successfully extracted and is being analyzed.</p>
+          
+          <div style="background: var(--white); padding: 1.5rem; border-radius: var(--radius-lg); margin: 1rem auto; max-width: 400px;">
+            <h4 style="color: var(--gray-800); margin-bottom: 1rem; text-align: center;">Processing Steps:</h4>
+            <ul style="color: var(--gray-700); list-style: none; margin: 0; padding: 0;">
+              <li style="margin-bottom: 0.5rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <i class="fas fa-check-circle" style="color: var(--accent-yellow); flex-shrink: 0;"></i>
+                <span>File uploaded to secure storage</span>
+              </li>
+              <li style="margin-bottom: 0.5rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <i class="fas fa-check-circle" style="color: var(--accent-yellow); flex-shrink: 0;"></i>
+                <span>Text extracted from your CV</span>
+              </li>
+              <li style="margin-bottom: 0.5rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <i class="fas fa-clock" style="color: var(--gray-400); flex-shrink: 0;"></i>
+                <span>AI analysis and parsing (Next phase)</span>
+              </li>
+              <li style="margin-bottom: 0.5rem; padding: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <i class="fas fa-clock" style="color: var(--gray-400); flex-shrink: 0;"></i>
+                <span>ATS score calculation (Next phase)</span>
+              </li>
+            </ul>
+          </div>
+          
+          <div style="background: var(--light-yellow); padding: 1rem; border-radius: var(--radius-md); border-left: 4px solid var(--accent-yellow); margin-top: 1rem;">
+            <p style="font-size: 0.875rem; color: var(--gray-700); margin: 0;">
+              <i class="fas fa-info-circle" style="color: var(--dark-yellow);"></i>
+              Text extraction successful! AI-powered analysis and ATS scoring will be available in the next update.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
-    <p style="margin-top: 0.75rem; color: var(--gray-600); font-size: 0.85rem;">Next: AI parsing → ATS scoring.</p>
   `;
 }
 
@@ -799,3 +853,172 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Chat System Variables
+let chatMessages = [];
+let isAITyping = false;
+
+// Dummy AI responses for interview practice
+const aiResponses = [
+  "Hello! I'm your AI interviewer. I've reviewed your CV and the job description. Let's start with a simple question: Can you tell me about yourself and why you're interested in this position?",
+  "That's interesting! Based on your background, I can see you have experience in {skill}. Can you give me a specific example of how you used this skill to solve a problem or achieve a goal?",
+  "Great example! Now, looking at the job requirements, I noticed they're looking for someone with strong {requirement} skills. How do you think your experience aligns with this requirement?",
+  "Excellent point! Let me ask you about a challenging situation. Can you describe a time when you faced a significant obstacle in a project and how you overcame it?",
+  "That shows great problem-solving skills! One more question: Where do you see yourself in 5 years, and how does this role fit into your career goals?",
+  "Thank you for those thoughtful answers! Based on our conversation, you seem well-prepared for this type of role. Do you have any questions about the position or the company that I can help clarify?",
+  "That's a great question! Is there anything else you'd like to discuss about your qualifications or experience that we haven't covered yet?"
+];
+
+let currentResponseIndex = 0;
+
+// Start AI Chat Function
+function startAIChat() {
+  const chatSection = document.getElementById('aiChatSection');
+  const chatMessagesDiv = document.getElementById('chatMessages');
+  
+  // Show chat section
+  chatSection.style.display = 'block';
+  chatSection.classList.add('fade-in');
+  
+  // Clear previous messages
+  chatMessagesDiv.innerHTML = '';
+  
+  // Reset chat state
+  currentResponseIndex = 0;
+  isAITyping = false;
+  
+  // Show initial AI greeting
+  setTimeout(() => {
+    addAIMessage(aiResponses[0]);
+    currentResponseIndex = 1;
+    chatSection.scrollIntoView({ behavior: 'smooth' });
+  }, 500);
+}
+
+// Add message to chat
+function addMessage(content, isUser = false) {
+  const chatMessagesDiv = document.getElementById('chatMessages');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `chat-message ${isUser ? 'user' : 'ai'}`;
+  
+  const avatar = document.createElement('div');
+  avatar.className = `chat-avatar ${isUser ? 'user' : 'ai'}`;
+  avatar.innerHTML = isUser ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+  
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${isUser ? 'user' : 'ai'}`;
+  bubble.textContent = content;
+  
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(bubble);
+  chatMessagesDiv.appendChild(messageDiv);
+  
+  // Scroll to bottom
+  chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+}
+
+// Add AI message with typing effect
+function addAIMessage(content) {
+  const chatMessagesDiv = document.getElementById('chatMessages');
+  
+  // Show typing indicator
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'chat-message ai';
+  typingDiv.id = 'typing-indicator';
+  
+  const avatar = document.createElement('div');
+  avatar.className = 'chat-avatar ai';
+  avatar.innerHTML = '<i class="fas fa-robot"></i>';
+  
+  const typingBubble = document.createElement('div');
+  typingBubble.className = 'chat-typing';
+  typingBubble.innerHTML = `
+    <span>AI is thinking</span>
+    <div class="chat-typing-dots">
+      <div class="chat-typing-dot"></div>
+      <div class="chat-typing-dot"></div>
+      <div class="chat-typing-dot"></div>
+    </div>
+  `;
+  
+  typingDiv.appendChild(avatar);
+  typingDiv.appendChild(typingBubble);
+  chatMessagesDiv.appendChild(typingDiv);
+  chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+  
+  isAITyping = true;
+  
+  // After 2-3 seconds, remove typing and add actual message
+  setTimeout(() => {
+    chatMessagesDiv.removeChild(typingDiv);
+    addMessage(content, false);
+    isAITyping = false;
+  }, 2000 + Math.random() * 1000); // Random delay between 2-3 seconds
+}
+
+// Send user message
+function sendMessage() {
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  const message = chatInput.value.trim();
+  
+  if (!message || isAITyping) return;
+  
+  // Add user message
+  addMessage(message, true);
+  
+  // Clear input
+  chatInput.value = '';
+  
+  // Disable input while AI is responding
+  chatInput.disabled = true;
+  sendBtn.disabled = true;
+  
+  // Generate AI response after a short delay
+  setTimeout(() => {
+    if (currentResponseIndex < aiResponses.length) {
+      let response = aiResponses[currentResponseIndex];
+      
+      // Add some personalization based on dummy data
+      response = response.replace('{skill}', 'JavaScript');
+      response = response.replace('{requirement}', 'problem-solving');
+      
+      addAIMessage(response);
+      currentResponseIndex++;
+    } else {
+      // Generate a generic response for continued conversation
+      const genericResponses = [
+        "That's a thoughtful response! Can you elaborate on that a bit more?",
+        "Interesting perspective! How would you apply that in a real-world scenario?",
+        "Great point! What challenges do you think you might face in that situation?",
+        "I appreciate your honesty. How do you plan to develop in that area?",
+        "That shows good self-awareness. What steps would you take to improve?",
+        "Excellent! Any other examples you'd like to share?"
+      ];
+      
+      const randomResponse = genericResponses[Math.floor(Math.random() * genericResponses.length)];
+      addAIMessage(randomResponse);
+    }
+    
+    // Re-enable input after AI responds
+    setTimeout(() => {
+      chatInput.disabled = false;
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }, 3000);
+    
+  }, 1000);
+}
+
+// Handle Enter key in chat input
+document.addEventListener('DOMContentLoaded', function() {
+  const chatInput = document.getElementById('chatInput');
+  if (chatInput) {
+    chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+});

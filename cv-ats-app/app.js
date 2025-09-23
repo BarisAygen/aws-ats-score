@@ -203,26 +203,29 @@ function showUploadSummary(s3Key, file, jobDescription) {
   cvInfoSection.classList.add('fade-in');
   atsScoreSection.classList.add('fade-in');
 }
+
 async function computeATS() {
-  const parsed = window.__parsedCv;
-  const jd = window.__jobDesc || "";
+  const parsed = window.__parsedCv, jd = window.__jobDesc || "";
   if (!parsed || !jd) { showNotification("Missing parsed CV or job description.", "error"); return; }
 
-  // Show loading animation
   showATSLoading();
-
   try {
+    console.log("POST", `${API_BASE}/score`);
     const res = await fetch(`${API_BASE}/score`, {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: { "Content-Type":"application/json" },
       body: JSON.stringify({ parsedCv: parsed, jobDescription: jd })
     });
-    const data = await res.json();
-    if (!data.ok) { showNotification(data.error || "Scoring failed", "error"); return; }
-
+    const raw = await res.text();            // <- önce text al
+    console.log("status", res.status, "raw", raw);
+    let data; try { data = JSON.parse(raw); } catch { 
+      throw new Error(`Non-JSON response (${res.status})`); 
+    }
+    if (!res.ok || !data.ok) throw new Error(data?.error || `HTTP ${res.status}`);
     renderScore(data);
-  } catch (error) {
-    showNotification("Failed to calculate ATS score", "error");
+  } catch (err) {
+    console.error("score error", err);
+    showNotification(`Failed to calculate ATS score: ${err.message}`, "error");
   }
 }
 
@@ -303,43 +306,53 @@ function animateLoading() {
 }
 
 function renderScore(s) {
-  // Clear loading animation
-  if (window.atsLoadingInterval) {
-    clearInterval(window.atsLoadingInterval);
-  }
-  
+  // stop loading anim
+  if (window.atsLoadingInterval) clearInterval(window.atsLoadingInterval);
+
+  // tolerate shapes
+  const matched = Array.isArray(s.matchedKeywords)
+    ? s.matchedKeywords
+    : (Array.isArray(s.semantic?.matchedKeywords) ? s.semantic.matchedKeywords : []);
+  const missing = Array.isArray(s.missingKeywords)
+    ? s.missingKeywords
+    : (Array.isArray(s.semantic?.missingKeywords) ? s.semantic.missingKeywords : []);
+  const notes = Array.isArray(s.notes) ? s.notes : [];
+  const suggestions = Array.isArray(s.suggestions) ? s.suggestions : [];
+
   const el = document.getElementById('atsScoreSection');
-  const missingHtml = s.missingKeywords.length
-    ? s.missingKeywords.slice(0,15).map(k=>`<span class="keyword-tag missing">${k}</span>`).join("")
+
+  const missingHtml = missing.length
+    ? missing.slice(0,15).map(k=>`<span class="keyword-tag missing">${k}</span>`).join("")
     : "<em>No missing keywords found</em>";
-  const matchedHtml = s.matchedKeywords.length
-    ? s.matchedKeywords.slice(0,20).map(k=>`<span class="keyword-tag matched">${k}</span>`).join("")
+
+  const matchedHtml = matched.length
+    ? matched.slice(0,20).map(k=>`<span class="keyword-tag matched">${k}</span>`).join("")
     : "<em>No keyword matches found</em>";
 
-  // Determine score color and status
-  const scoreColor = s.score >= 80 ? '#28a745' : s.score >= 60 ? '#ffc107' : '#dc3545';
-  const scoreStatus = s.score >= 80 ? 'Excellent' : s.score >= 60 ? 'Good' : 'Needs Improvement';
-  const scoreIcon = s.score >= 80 ? 'fa-check-circle' : s.score >= 60 ? 'fa-exclamation-circle' : 'fa-times-circle';
+  const score = Number(s.score ?? 0);
+  const scoreColor = score >= 80 ? '#28a745' : score >= 60 ? '#ffc107' : '#dc3545';
+  const scoreStatus = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Needs Improvement';
+  const scoreIcon = score >= 80 ? 'fa-check-circle' : score >= 60 ? 'fa-exclamation-circle' : 'fa-times-circle';
 
   el.innerHTML = `
     <h2 class="section-title"><i class="fas fa-chart-line"></i> ATS Score Results</h2>
-    
+
     <div class="ats-score-hero">
       <div class="ats-score-circle">
         <div class="ats-score-content">
-          <div class="ats-score-number" style="color: ${scoreColor};">${s.score}</div>
+          <div class="ats-score-number" style="color:${scoreColor};">${score}</div>
           <div class="ats-score-total">/100</div>
         </div>
         <svg class="ats-score-ring" width="200" height="200">
           <circle class="ats-score-ring-bg" cx="100" cy="100" r="85" />
-          <circle class="ats-score-ring-progress" cx="100" cy="100" r="85" 
-                  style="stroke: ${scoreColor}; stroke-dasharray: ${2 * Math.PI * 85}; 
-                         stroke-dashoffset: ${2 * Math.PI * 85 - (s.score / 100) * 2 * Math.PI * 85};" />
+          <circle class="ats-score-ring-progress" cx="100" cy="100" r="85"
+            style="stroke:${scoreColor};stroke-dasharray:${2*Math.PI*85};
+                   stroke-dashoffset:${2*Math.PI*85 - (score/100)*(2*Math.PI*85)};" />
         </svg>
       </div>
       <div class="ats-score-status">
-        <i class="fas ${scoreIcon}" style="color: ${scoreColor};"></i>
-        <span style="color: ${scoreColor};">${scoreStatus}</span>
+        <i class="fas ${scoreIcon}" style="color:${scoreColor};"></i>
+        <span style="color:${scoreColor};">${scoreStatus}</span>
       </div>
     </div>
 
@@ -348,59 +361,45 @@ function renderScore(s) {
         <div class="ats-result-header">
           <i class="fas fa-check-circle"></i>
           <h3>Matched Keywords</h3>
-          <span class="keyword-count">${s.matchedKeywords.length}</span>
+          <span class="keyword-count">${matched.length}</span>
         </div>
-        <div class="keyword-container">
-          ${matchedHtml}
-        </div>
+        <div class="keyword-container">${matchedHtml}</div>
       </div>
-      
+
       <div class="ats-result-card missing">
         <div class="ats-result-header">
           <i class="fas fa-exclamation-triangle"></i>
           <h3>Missing Keywords</h3>
-          <span class="keyword-count">${s.missingKeywords.length}</span>
+          <span class="keyword-count">${missing.length}</span>
         </div>
-        <div class="keyword-container">
-          ${missingHtml}
-        </div>
+        <div class="keyword-container">${missingHtml}</div>
       </div>
     </div>
 
-    ${(s.notes && s.notes.length) ? `
+    ${(notes.length || suggestions.length) ? `
       <div class="ats-notes-card">
         <div class="ats-notes-header">
           <i class="fas fa-lightbulb"></i>
           <h3>Recommendations</h3>
         </div>
         <ul class="ats-notes-list">
-          ${s.notes.map(n=>`<li><i class="fas fa-arrow-right"></i>${n}</li>`).join("")}
+          ${[...notes, ...suggestions].map(n=>`<li><i class="fas fa-arrow-right"></i>${n}</li>`).join("")}
         </ul>
       </div>
     ` : ''}
-    
+
     <div class="chat-launch-section">
       <div class="chat-launch-card">
-        <div class="chat-launch-header">
-          <i class="fas fa-comments"></i>
-          <h3>Ready for Interview Practice?</h3>
-        </div>
-        <p class="chat-launch-description">
-          Get personalized interview questions based on your CV and the job requirements. 
-          Practice with our AI interviewer to improve your chances!
-        </p>
-        <button class="chat-launch-btn" onclick="startAIChat()">
-          <i class="fas fa-robot"></i>
-          Chat with AI Interviewer
-        </button>
+        <div class="chat-launch-header"><i class="fas fa-comments"></i><h3>Ready for Interview Practice?</h3></div>
+        <p class="chat-launch-description">Get personalized interview questions based on your CV and the job requirements.</p>
+        <button class="chat-launch-btn" onclick="startAIChat()"><i class="fas fa-robot"></i> Chat with AI Interviewer</button>
       </div>
     </div>
   `;
-  
-  // Animate the score ring
+
   setTimeout(() => {
     const ring = el.querySelector('.ats-score-ring-progress');
-    ring.style.transition = 'stroke-dashoffset 2s ease-in-out';
+    if (ring) ring.style.transition = 'stroke-dashoffset 2s ease-in-out';
   }, 100);
 }
 

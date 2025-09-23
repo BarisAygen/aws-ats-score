@@ -170,6 +170,28 @@
         <div class="loading-spinner"></div>
         <p class="loading-text">Analyzing your CV with AI...</p>
       </div>
+
+      <!-- AI Chat Section -->
+      <div class="ai-chat-section" id="aiChatSection" style="display: none;">
+        <h2 class="section-title">
+          <i class="fas fa-robot"></i>
+          AI Interview Practice
+        </h2>
+        <div class="chat-container">
+          <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be added here dynamically -->
+          </div>
+          <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+              <input type="text" id="chatInput" placeholder="Type your response here..." class="chat-input">
+              <button id="chatSendBtn" onclick="sendMessage()" class="chat-send-btn">
+                <i class="fas fa-paper-plane"></i>
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 

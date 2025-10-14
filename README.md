@@ -9,3 +9,6 @@ The frontend is a lightweight static site hosted. Users see a clean workflow: up
 A new feature extends the project beyond résumé parsing and scoring. Using Amazon Bedrock, the system now includes an AI Interviewer chatbot that can simulate an interview based on the candidate’s CV and the job description. The chatbot asks role-specific questions, tests knowledge, and provides feedback, turning the platform into an interactive career assistant rather than just an ATS checker.
 
 Deployment is fully serverless. The backend is handled by AWS Lambda and API Gateway, the frontend is hosted statically, and storage is managed with Amazon S3. The result is a scalable, secure, and user-friendly tool for job seekers.
+
+## Medium Article
+👉 [Read the full write-up] -> https://aws.plainenglish.io/how-i-used-aws-to-build-an-ai-powered-resume-scoring-and-mock-interview-system-f64ca0214828
